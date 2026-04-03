@@ -5,6 +5,10 @@
     { self }:
     {
       templates = {
+        pi5 = {
+          path = ./pi5;
+          description = "A minimal Pi 5 SD Card Image Flake";
+        };
         minimal = {
           path = ./minimal;
           description = "A minimal flake.";
