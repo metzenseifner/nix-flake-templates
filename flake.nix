@@ -5,6 +5,10 @@
     { self }:
     {
       templates = {
+        time = {
+          path = ./time;
+          description = "A flake that transforms builtins.currentTime into a variety of formats";
+        };
         pi5 = {
           path = ./pi5;
           description = "A minimal Pi 5 SD Card Image Flake";
