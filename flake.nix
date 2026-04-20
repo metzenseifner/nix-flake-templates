@@ -77,6 +77,10 @@
           path = ./kubernetes;
           description = "Kubernetes development environment with AWS EKS access";
         };
+        rust = {
+          path = ./rust;
+          description = "Rust development environment with unified dev-* CLI";
+        };
       };
       defaultTemplate = self.templates.shell;
     };
