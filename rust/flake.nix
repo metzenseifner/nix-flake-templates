@@ -3,20 +3,6 @@
     Rust development environment with a unified project CLI.
 
     Use `nix develop` or `nix develop -c $SHELL` to activate.
-
-    Unified CLI commands (same across language templates):
-      dev-init     - Initialize a new project (cargo init)
-      dev-deps     - Fetch/build dependencies (cargo fetch)
-      dev-update   - Update dependencies (cargo update)
-      dev-build    - Build the project (cargo build)
-      dev-test     - Run tests (cargo test)
-      dev-lint     - Lint the project (cargo clippy)
-      dev-fmt      - Format code (cargo fmt)
-      dev-run      - Run the project (cargo run)
-      dev-clean    - Clean build artifacts (cargo clean)
-      dev-check    - Type-check without building (cargo check)
-      dev-doc      - Generate documentation (cargo doc --open)
-      dev-help     - Show this help
   '';
 
   inputs = {
@@ -24,6 +10,11 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
+    nix-derivation-hofs = {
+      url = "git+ssh://git@github.com:metzenseifner/nix-derivation-hofs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
   outputs =
@@ -32,6 +23,7 @@
       nixpkgs,
       systems,
       rust-overlay,
+      nix-derivation-hofs
     }:
     let
       forEachSystem =
@@ -65,7 +57,8 @@
           # These use a dev-* prefix so they won't collide with anything
           # and can be the same across language templates.
 
-          dev-init = pkgs.writeShellScriptBin "dev-init" ''
+inherit (nix-derivation-hofs.lib) withDocs mkHelpCli;
+          dev-init = withDocs "Initialize a new project" (pkgs.writeShellScriptBin "dev-init" ''
             set -euo pipefail
             if [ -f Cargo.toml ]; then
               echo "Cargo.toml already exists. Aborting."
@@ -73,7 +66,7 @@
             fi
             cargo init "''${@:-.}"
             echo "Project initialized."
-          '';
+          '');
 
           dev-deps = pkgs.writeShellScriptBin "dev-deps" ''
             set -euo pipefail
@@ -128,24 +121,25 @@
             cargo doc --open "$@"
           '';
 
-          dev-help = pkgs.writeShellScriptBin "dev-help" ''
-            cat <<'HELP'
-            Unified dev CLI commands:
+          dev-help = mkHelpCli { inherit pkgs; name = "dev-help"; derivations = devScripts;};
+          # dev-help = pkgs.writeShellScriptBin "dev-help" ''
+          #   cat <<'HELP'
+          #   Unified dev CLI commands:
 
-              dev-init     Initialize a new project
-              dev-deps     Fetch/build dependencies
-              dev-update   Update dependencies
-              dev-build    Build the project
-              dev-test     Run tests
-              dev-lint     Lint the project
-              dev-fmt      Format code
-              dev-run      Run the project
-              dev-clean    Clean build artifacts
-              dev-check    Type-check without building
-              dev-doc      Generate and open documentation
-              dev-help     Show this help
-            HELP
-          '';
+          #     dev-init     Initialize a new project
+          #     dev-deps     Fetch/build dependencies
+          #     dev-update   Update dependencies
+          #     dev-build    Build the project
+          #     dev-test     Run tests
+          #     dev-lint     Lint the project
+          #     dev-fmt      Format code
+          #     dev-run      Run the project
+          #     dev-clean    Clean build artifacts
+          #     dev-check    Type-check without building
+          #     dev-doc      Generate and open documentation
+          #     dev-help     Show this help
+          #   HELP
+          # '';
 
           devScripts = [
             dev-init
@@ -161,6 +155,7 @@
             dev-doc
             dev-help
           ];
+
 
           myPackages = [
             rustToolchain
