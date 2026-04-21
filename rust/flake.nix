@@ -11,7 +11,7 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
     nix-derivation-hofs = {
-      url = "git+ssh://git@github.com:metzenseifner/nix-derivation-hofs";
+      url = "git+ssh://git@github.com/metzenseifner/nix-derivation-hofs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -23,7 +23,7 @@
       nixpkgs,
       systems,
       rust-overlay,
-      nix-derivation-hofs
+      nix-derivation-hofs,
     }:
     let
       forEachSystem =
@@ -57,89 +57,91 @@
           # These use a dev-* prefix so they won't collide with anything
           # and can be the same across language templates.
 
-inherit (nix-derivation-hofs.lib) withDocs mkHelpCli;
-          dev-init = withDocs "Initialize a new project" (pkgs.writeShellScriptBin "dev-init" ''
-            set -euo pipefail
-            if [ -f Cargo.toml ]; then
-              echo "Cargo.toml already exists. Aborting."
-              exit 1
-            fi
-            cargo init "''${@:-.}"
-            echo "Project initialized."
-          '');
+          inherit (nix-derivation-hofs.lib) withDocs mkHelpPkg;
+          dev-init = withDocs "Initialize a new project" (
+            pkgs.writeShellScriptBin "dev-init" ''
+              set -euo pipefail
+              if [ -f Cargo.toml ]; then
+                echo "Cargo.toml already exists. Aborting."
+                exit 1
+              fi
+              cargo init "''${@:-.}"
+              echo "Project initialized."
+            ''
+          );
 
-          dev-deps = pkgs.writeShellScriptBin "dev-deps" ''
-            set -euo pipefail
-            cargo fetch "$@"
-            echo "Dependencies fetched."
-          '';
+          dev-deps = withDocs "Fetch/build dependencies" (
+            pkgs.writeShellScriptBin "dev-deps" ''
+              set -euo pipefail
+              cargo fetch "$@"
+              echo "Dependencies fetched."
+            ''
+          );
 
-          dev-update = pkgs.writeShellScriptBin "dev-update" ''
-            set -euo pipefail
-            cargo update "$@"
-            echo "Dependencies updated."
-          '';
+          dev-update = withDocs "Update dependencies" (
+            pkgs.writeShellScriptBin "dev-update" ''
+              set -euo pipefail
+              cargo update "$@"
+              echo "Dependencies updated."
+            ''
+          );
 
-          dev-build = pkgs.writeShellScriptBin "dev-build" ''
-            set -euo pipefail
-            cargo build "$@"
-          '';
+          dev-build = withDocs "Build the project" (
+            pkgs.writeShellScriptBin "dev-build" ''
+              set -euo pipefail
+              cargo build "$@"
+            ''
+          );
 
-          dev-test = pkgs.writeShellScriptBin "dev-test" ''
-            set -euo pipefail
-            cargo test "$@"
-          '';
+          dev-test = withDocs "Run tests" (
+            pkgs.writeShellScriptBin "dev-test" ''
+              set -euo pipefail
+              cargo test "$@"
+            ''
+          );
 
-          dev-lint = pkgs.writeShellScriptBin "dev-lint" ''
-            set -euo pipefail
-            cargo clippy "$@"
-          '';
+          dev-lint = withDocs "Lint the project" (
+            pkgs.writeShellScriptBin "dev-lint" ''
+              set -euo pipefail
+              cargo clippy "$@"
+            ''
+          );
 
-          dev-fmt = pkgs.writeShellScriptBin "dev-fmt" ''
-            set -euo pipefail
-            cargo fmt "$@"
-          '';
+          dev-fmt = withDocs "Format the code" (
+            pkgs.writeShellScriptBin "dev-fmt" ''
+              set -euo pipefail
+              cargo fmt "$@"
+            ''
+          );
 
-          dev-run = pkgs.writeShellScriptBin "dev-run" ''
-            set -euo pipefail
-            cargo run "$@"
-          '';
+          dev-run = withDocs "Run the project" (
+            pkgs.writeShellScriptBin "dev-run" ''
+              set -euo pipefail
+              cargo run "$@"
+            ''
+          );
 
-          dev-clean = pkgs.writeShellScriptBin "dev-clean" ''
-            set -euo pipefail
-            cargo clean "$@"
-            echo "Build artifacts cleaned."
-          '';
+          dev-clean = withDocs "Clean the build artifacts" (
+            pkgs.writeShellScriptBin "dev-clean" ''
+              set -euo pipefail
+              cargo clean "$@"
+              echo "Build artifacts cleaned."
+            ''
+          );
 
-          dev-check = pkgs.writeShellScriptBin "dev-check" ''
-            set -euo pipefail
-            cargo check "$@"
-          '';
+          dev-check = withDocs "Typecheck without building" (
+            pkgs.writeShellScriptBin "dev-check" ''
+              set -euo pipefail
+              cargo check "$@"
+            ''
+          );
 
-          dev-doc = pkgs.writeShellScriptBin "dev-doc" ''
-            set -euo pipefail
-            cargo doc --open "$@"
-          '';
-
-          dev-help = mkHelpCli { inherit pkgs; name = "dev-help"; derivations = devScripts;};
-          # dev-help = pkgs.writeShellScriptBin "dev-help" ''
-          #   cat <<'HELP'
-          #   Unified dev CLI commands:
-
-          #     dev-init     Initialize a new project
-          #     dev-deps     Fetch/build dependencies
-          #     dev-update   Update dependencies
-          #     dev-build    Build the project
-          #     dev-test     Run tests
-          #     dev-lint     Lint the project
-          #     dev-fmt      Format code
-          #     dev-run      Run the project
-          #     dev-clean    Clean build artifacts
-          #     dev-check    Type-check without building
-          #     dev-doc      Generate and open documentation
-          #     dev-help     Show this help
-          #   HELP
-          # '';
+          dev-doc = withDocs "Generate and open documentation" (
+            pkgs.writeShellScriptBin "dev-doc" ''
+              set -euo pipefail
+              cargo doc --open "$@"
+            ''
+          );
 
           devScripts = [
             dev-init
@@ -153,15 +155,21 @@ inherit (nix-derivation-hofs.lib) withDocs mkHelpCli;
             dev-clean
             dev-check
             dev-doc
-            dev-help
           ];
 
+          dev-help = mkHelpPkg {
+            inherit pkgs;
+            name = "dev-help";
+            derivations = devScripts;
+          };
 
           myPackages = [
             rustToolchain
             pkgs.pkg-config
             pkgs.openssl
-          ] ++ devScripts;
+          ]
+          ++ devScripts
+          ++ [ dev-help ];
 
           packageNames = builtins.concatStringsSep " " (map (p: p.name) myPackages);
         in
