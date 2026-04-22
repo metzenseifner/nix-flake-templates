@@ -26,7 +26,7 @@
       nix-derivation-hofs,
     }:
     let
-      forEachSystem =
+      traverseSystems =
         f:
         nixpkgs.lib.genAttrs (import systems) (
           system:
@@ -40,7 +40,7 @@
         );
     in
     {
-      devShells = forEachSystem (
+      devShells = traverseSystems (
         { pkgs, system }:
         let
           # Use stable Rust toolchain with clippy and rustfmt
@@ -57,8 +57,9 @@
           # These use a dev-* prefix so they won't collide with anything
           # and can be the same across language templates.
 
-          inherit (nix-derivation-hofs.lib) withDocs mkHelpPkg;
-          dev-init = withDocs "Initialize a new project" (
+          inherit (nix-derivation-hofs.lib) withTime withDocs mkHelpPkg;
+
+          dev-init = withTime (withDocs "Initialize a new project" (
             pkgs.writeShellScriptBin "dev-init" ''
               set -euo pipefail
               if [ -f Cargo.toml ]; then
@@ -68,7 +69,7 @@
               cargo init "''${@:-.}"
               echo "Project initialized."
             ''
-          );
+          ));
 
           dev-deps = withDocs "Fetch/build dependencies" (
             pkgs.writeShellScriptBin "dev-deps" ''

@@ -35,7 +35,7 @@
       ...
     }:
     let
-      forEachSystem =
+      traverseSystems =
         f:
         nixpkgs.lib.genAttrs (import systems) (
           system:
@@ -55,7 +55,7 @@
         );
     in
     {
-      devShells = forEachSystem (
+      devShells = traverseSystems (
         {
           pkgs,
           pkgsUnstable,

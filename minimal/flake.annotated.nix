@@ -1,6 +1,6 @@
 # Key improvements to consider
 #
-# -  Share the perSystem computation across projections using the mapAttrs pattern shown in the final comment, avoiding redundant thunk allocation.
+# -  Share the perSystemOutputs computation across projections using the mapAttrs pattern shown in the final comment, avoiding redundant thunk allocation.
 # -  Replace rec with explicit let bindings for the scripts set to avoid accidental infinite recursion as the set grows.
 # -  Add default to apps (e.g. apps.default = apps.help;) so nix run works without specifying a name.
 # -  Add formatter output (e.g. nixfmt or alejandra) so nix fmt works out of the box.
@@ -26,7 +26,7 @@
     inputs@{ self, ... }:
     let
 
-      # ── forEachSystem : (Pkgs → AttrSet) → AttrSet(System, AttrSet) ──────────
+      # ── traverseSystems : (Pkgs → AttrSet) → AttrSet(System, AttrSet) ──────────
       #
       # This is the core "system-indexed product" combinator.
       # Algebraically: given a morphism f : Pkgs → A,
@@ -54,19 +54,19 @@
       #   4. Debuggability — no hidden `eachSystem` fold; the data flow is
       #      a plain function application, trivially traceable in `nix repl`.
       #
-      forEachSystem =
+      traverseSystems =
         f:
         inputs.nixpkgs.lib.genAttrs inputs.nixpkgs.lib.systems.flakeExposed (
           system: f inputs.nixpkgs.legacyPackages.${system}
         );
 
-      # ── perSystem : System → Pkgs → Record { packages, apps, devShells } ────
+      # ── perSystemOutputs : System → Pkgs → Record { packages, apps, devShells } ────
       #
       # This is the "fibre" of the system-indexed bundle:
       # for a given system and its package set, produce ALL per-system outputs
       # as a single coherent record (product type).
       #
-      # Algebraically, perSystem defines a dependent pair:
+      # Algebraically, perSystemOutputs defines a dependent pair:
       #   (s : System) × (pkgs : Pkgs(s)) → { packages : A, apps : B, ... }
       #
       # Crucially, everything for one system is defined together in one
@@ -80,7 +80,7 @@
       #   types (e.g. `packages.foo` vs `apps.foo`), the merge is ambiguous.
       #   Here, the record structure is explicit — no implicit merging.
       #
-      perSystem =
+      perSystemOutputs =
         system: pkgs:
         let
           # ── scripts : Record { help, default } ──────────────────────────
@@ -147,12 +147,12 @@
       # ── Projections over Record(System) ────────────────────────────────────
       #
       # Each top-level output attr is a π-projection (product elimination)
-      # from the perSystem bundle:
+      # from the perSystemOutputs bundle:
       #
-      #   packages = π_packages ∘ (∏_s perSystem(s))
-      #   apps     = π_apps     ∘ (∏_s perSystem(s))
+      #   packages = π_packages ∘ (∏_s perSystemOutputs(s))
+      #   apps     = π_apps     ∘ (∏_s perSystemOutputs(s))
       #
-      # i.e., for each system s, we compute the full fiber via `perSystem`,
+      # i.e., for each system s, we compute the full fiber via `perSystemOutputs`,
       # then project out just the `.packages` (or `.apps`, etc.) component.
       #
       # Why explicit projections instead of a single mapAttrs + deep-merge:
@@ -165,20 +165,20 @@
       #      The flake schema expects `packages.<system>.<name>`, and
       #      this structure guarantees it by construction.
       #   3. Laziness-friendly — Nix is lazy, so unevaluated projections
-      #      (commented-out lines) impose zero cost. The `perSystem` call
+      #      (commented-out lines) impose zero cost. The `perSystemOutputs` call
       #      is re-invoked per projection, but thanks to Nix's thunk
-      #      sharing within each `forEachSystem` call, in practice the
+      #      sharing within each `traverseSystems` call, in practice the
       #      attribute set is built once per system per output type.
       #
       # Trade-off / possible improvement:
-      #   Each `forEachSystem` call independently invokes `perSystem`,
-      #   meaning `perSystem` is called N×M times (N systems × M output
+      #   Each `traverseSystems` call independently invokes `perSystemOutputs`,
+      #   meaning `perSystemOutputs` is called N×M times (N systems × M output
       #   types). While Nix's laziness means only accessed attrs are
       #   forced, the intermediate records are not shared across
       #   projections. A more efficient (but less readable) approach:
       #
-      #     let allOutputs = forEachSystem (pkgs:
-      #           perSystem pkgs.system pkgs);
+      #     let allOutputs = traverseSystems (pkgs:
+      #           perSystemOutputs pkgs.system pkgs);
       #     in {
       #       packages  = mapAttrs (_: v: v.packages)  allOutputs;
       #       apps      = mapAttrs (_: v: v.apps)      allOutputs;
@@ -190,9 +190,9 @@
       #   a product once and applying multiple projections, rather than
       #   recomputing the product for each projection.
       #
-      packages = forEachSystem (pkgs: (perSystem pkgs.system pkgs).packages);
-      apps = forEachSystem (pkgs: (perSystem pkgs.system pkgs).apps);
-      # devShells = forEachSystem (pkgs: (perSystem pkgs.system pkgs).devShells);
-      # checks = forEachSystem (pkgs: (perSystem pkgs.system pkgs).checks);
+      packages = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).packages);
+      apps = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).apps);
+      # devShells = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).devShells);
+      # checks = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).checks);
     };
 }

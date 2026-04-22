@@ -12,7 +12,7 @@
       systems,
     }:
     let
-      forEachSystem =
+      traverseSystems =
         f:
         nixpkgs.lib.genAttrs (import systems) (
           system:
@@ -23,7 +23,7 @@
         );
     in
     {
-      devShells = forEachSystem (
+      devShells = traverseSystems (
         { pkgs, system }:
         let
           bootstrap-dynatrace-app = pkgs.writeShellScriptBin "bootstrap-dynatrace-app" ''

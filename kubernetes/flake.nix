@@ -15,7 +15,7 @@
     systems,
   }:
   let
-    forEachSystem =
+    traverseSystems =
       f: nixpkgs.lib.genAttrs (import systems) (system: f {
         inherit system;
         pkgs = import nixpkgs { inherit system; };
@@ -23,7 +23,7 @@
       });
   in
   {
-    devShells = forEachSystem (
+    devShells = traverseSystems (
       { pkgs, pkgs-unstable, system }:
       let
         # AWS Credentials Configuration

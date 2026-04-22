@@ -13,7 +13,7 @@
     nur,
   }:
   let
-    forEachSystem =
+    traverseSystems =
       f:
       nixpkgs.lib.genAttrs (import systems) (
         system:
@@ -26,7 +26,7 @@
       );
   in
   {
-    devShells = forEachSystem (
+    devShells = traverseSystems (
       { pkgs }: {
         default = pkgs.mkShellNoCC {
           packages = [

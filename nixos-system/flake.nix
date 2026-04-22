@@ -13,7 +13,7 @@
   outputs = { self, nixpkgs, systems, disko, ... }:
     let
       # Helper to generate configurations for each system
-      forEachSystem = f: nixpkgs.lib.genAttrs (import systems) (system: f system);
+      traverseSystems = f: nixpkgs.lib.genAttrs (import systems) (system: f system);
     in
     {
       # NixOS configurations for different architectures
@@ -42,7 +42,7 @@
       };
 
       # Example: build images for different architectures
-      packages = forEachSystem (system:
+      packages = traverseSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
         in

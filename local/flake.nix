@@ -11,11 +11,12 @@
     systems,
   }:
   let
-    forEachSystem =
+    # Functor: Maps a "System" category to a "Derivation/Package" category.
+    traverseSystems =
       f: nixpkgs.lib.genAttrs (import systems) (system: f { pkgs = import nixpkgs { inherit system; }; });
   in
   {
-    devShells = forEachSystem (
+    devShells = traverseSystems (
       { pkgs }:
       {
         default = pkgs.mkShellNoCC {

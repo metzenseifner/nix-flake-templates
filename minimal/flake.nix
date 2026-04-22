@@ -3,17 +3,23 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    hofs = {
+      url = "github:metzenseifner/nix-derivation-hofs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
     inputs@{ self, ... }:
     let
-      forEachSystem =
+      # Functor: a functor because it maps a package-producing function across a pre-defined set of architectural contexts, preserving structure of output
+      # Maps a "System" category to a "Derivation/Package" category.
+      traverseSystems =
         f:
         inputs.nixpkgs.lib.genAttrs inputs.nixpkgs.lib.systems.flakeExposed (
           system: f inputs.nixpkgs.legacyPackages.${system}
         );
-      perSystem =
+      perSystemOutputs =
         system: pkgs:
         let
           scripts = rec {
@@ -42,9 +48,9 @@
     in
     {
       # Projections over Record(system)
-      packages = forEachSystem (pkgs: (perSystem pkgs.system pkgs).packages);
-      apps = forEachSystem (pkgs: (perSystem pkgs.system pkgs).apps);
-      # devShells = forEachSystem (pkgs: (perSystem pkgs.system pkgs).devShells);
-      # checks = forEachSystem (pkgs: (perSystem pkgs.system pkgs).checks);
+      packages = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).packages);
+      apps = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).apps);
+      # devShells = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).devShells);
+      # checks = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).checks);
     };
 }

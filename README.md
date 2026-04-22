@@ -146,11 +146,11 @@ Sometimes, you might encounter errors similar to the following when attempting t
        to ~/.config/nixpkgs/config.nix.
 ```
 
-To solve the issue, you need to add `config.allowUnfree = true;` to `forEachSystem` as below.
+To solve the issue, you need to add `config.allowUnfree = true;` to `traverseSystems` as below.
 
 ```nix
     let
-      forEachSystem =
+      traverseSystems =
         f:
         nixpkgs.lib.genAttrs (import systems) (
           system:

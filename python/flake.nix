@@ -11,11 +11,11 @@
     systems,
   }:
   let
-    forEachSystem =
+    traverseSystems =
       f: nixpkgs.lib.genAttrs (import systems) (system: f { pkgs = import nixpkgs { inherit system; }; });
   in
   {
-    devShells = forEachSystem (
+    devShells = traverseSystems (
       { pkgs }:
       {
         default =
