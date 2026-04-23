@@ -5,6 +5,10 @@
     { self }:
     {
       templates = {
+        letter = {
+          path = ./letter;
+          description = "A Markdown to PDF over LuaLaTeX Flake for business letters";
+        };
         time = {
           path = ./time;
           description = "A flake that transforms builtins.currentTime into a variety of formats";

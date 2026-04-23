@@ -1,0 +1,74 @@
+%% letter-template.tex — pandoc template for LuaLaTeX cover letters
+\documentclass[$if(fontsize)$$fontsize$$else$11pt$endif$]{article}
+
+% --- Page geometry ---
+\usepackage[$if(geometry)$$for(geometry)$$geometry$$sep$,$endfor$$else$margin=1in$endif$]{geometry}
+
+% --- Fonts (requires LuaLaTeX or XeLaTeX) ---
+\usepackage{fontspec}
+\setmainfont{$if(mainfont)$$mainfont$$else$Latin Modern Roman$endif$}
+$if(sansfont)$\setsansfont{$sansfont$}$endif$
+
+% --- Typography ---
+\usepackage{microtype}
+\usepackage{parskip}
+\setlength{\parindent}{0pt}
+
+% --- Links ---
+\usepackage[hidelinks]{hyperref}
+
+% --- One-page letter: no page numbers ---
+\pagenumbering{gobble}
+
+% --- User-supplied additions from YAML ---
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+\begin{document}
+
+%% ===== Sender block (top-right) =====
+$if(sender)$
+\begin{flushright}
+$if(sender.name)$\textbf{$sender.name$}\\$endif$
+$for(sender.address)$$sender.address$\\$endfor$
+$if(sender.email)$\href{mailto:$sender.email$}{$sender.email$}\\$endif$
+$if(sender.phone)$$sender.phone$$endif$
+\end{flushright}
+$endif$
+
+\vspace{1em}
+
+%% ===== Date =====
+$if(date)$$date$$else$\today$endif$
+
+\vspace{1.5em}
+
+%% ===== Recipient block =====
+$if(recipient.name)$$recipient.name$\\$endif$
+$if(recipient.title)$$recipient.title$\\$endif$
+$if(recipient.company)$$recipient.company$\\$endif$
+$for(recipient.address)$$recipient.address$\\$endfor$
+
+\vspace{1.5em}
+
+%% ===== Subject (optional) =====
+$if(subject)$\textbf{$subject$}
+
+\vspace{0.5em}
+$endif$
+
+%% ===== Salutation =====
+$if(salutation)$$salutation$$else$Dear $if(recipient.name)$$recipient.name$$else$Hiring Manager$endif$$endif$,
+
+%% ===== Body =====
+$body$
+
+%% ===== Closing =====
+$if(closing)$$closing$$else$Sincerely$endif$,
+
+\vspace{2.5em}
+
+$if(signature)$$signature$$else$$if(sender.name)$$sender.name$$endif$$endif$
+
+\end{document}
