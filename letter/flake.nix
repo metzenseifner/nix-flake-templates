@@ -40,41 +40,46 @@
               \usepackage{calc}
             '';
           };
-          inherit (nix-derivation-hofs.lib) withDocs mkHelpPkg;
+          inherit (nix-derivation-hofs.lib) withHelp withUnexecuted mkHelpPkg;
           scriptFactories = {
             pandoc-texify =
               name:
-              withDocs "${name} [FILE]" (
-                pkgs.writeShellApplication {
-                  name = name;
-                  runtimeInputs = [
-                    pkgs.pandoc
-                    pkgs.gnused
-                    pkgs.texlive.combined.scheme-medium
-                  ];
-                  text = ''
-                    set -x
-                    if [ $# -lt 1 ]; then
-                      echo "usage: ${name} FILE" >&2
-                      exit 1
-                    fi
+              withUnexecuted {
+                inherit pkgs;
+                pkg = withHelp {
+                  inherit pkgs;
+                  doc = "Convert a Markdown file into a PDF by providing a positional argument PATH";
+                  pkg = pkgs.writeShellApplication {
+                    name = name;
+                    runtimeInputs = [
+                      pkgs.pandoc
+                      pkgs.gnused
+                      pkgs.texlive.combined.scheme-medium
+                    ];
+                    text = ''
+                      set -x
+                      if [ $# -lt 1 ]; then
+                        echo "usage: ${name} FILE" >&2
+                        exit 1
+                      fi
 
-                    input_file="''${1:?usage: ${name} FILE}"
-                    canonical_file="$(readlink -f "''${input_file}")"
-                    parent_dir="$(dirname "''${canonical_file}")"
-                    file_name="$(basename "''${canonical_file}")"
+                      input_file="''${1:?usage: ${name} FILE}"
+                      canonical_file="$(readlink -f "''${input_file}")"
+                      parent_dir="$(dirname "''${canonical_file}")"
+                      file_name="$(basename "''${canonical_file}")"
 
-                    cd "''${parent_dir}"
+                      cd "''${parent_dir}"
 
-                    pandoc -s -i "''${file_name}" \
-                      --pdf-engine=lualatex \
-                      --template ${letter_template} \
-                      --include-in-header=${pandoc_preamble} \
-                      --no-highlight \
-                      -o "$(printf "%s" "''${file_name}" |  sed 's/\.[^.]*$//').pdf"
-                  '';
-                }
-              );
+                      pandoc -s -i "''${file_name}" \
+                        --pdf-engine=lualatex \
+                        --template ${letter_template} \
+                        --include-in-header=${pandoc_preamble} \
+                        --no-highlight \
+                        -o "$(printf "%s" "''${file_name}" |  sed 's/\.[^.]*$//').pdf"
+                    '';
+                  };
+                };
+              };
           };
           resolved = pkgs.lib.mapAttrs (name: f: f name) scriptFactories;
           scripts = resolved // {
