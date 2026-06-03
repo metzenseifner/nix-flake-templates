@@ -80,12 +80,18 @@
             ];
           };
         };
+
+      # Compute each system's outputs ONCE, then project each field out.
+      # This is the System↔Output transpose: perSystem is keyed by system,
+      # the flake schema wants each field keyed by system.
+      perSystem = fmapSystems perSystemOutputs;
+      project = field: builtins.mapAttrs (_: out: out.${field}) perSystem;
     in
     {
       # Projections over Record(system)
-      packages = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).packages);
-      apps = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).apps);
-      devShells = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).devShells);
-      # checks = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).checks);
+      packages = project "packages";
+      apps = project "apps";
+      devShells = project "devShells";
+      # checks = project "checks";
     };
 }
