@@ -26,7 +26,7 @@
     inputs@{ self, ... }:
     let
 
-      # ── traverseSystems : (Pkgs → AttrSet) → AttrSet(System, AttrSet) ──────────
+      # ── fmapSystems : (Pkgs → AttrSet) → AttrSet(System, AttrSet) ──────────
       #
       # This is the core "system-indexed product" combinator.
       # Algebraically: given a morphism f : Pkgs → A,
@@ -54,7 +54,7 @@
       #   4. Debuggability — no hidden `eachSystem` fold; the data flow is
       #      a plain function application, trivially traceable in `nix repl`.
       #
-      traverseSystems =
+      fmapSystems =
         f:
         inputs.nixpkgs.lib.genAttrs inputs.nixpkgs.lib.systems.flakeExposed (
           system: f inputs.nixpkgs.legacyPackages.${system}
@@ -167,17 +167,17 @@
       #   3. Laziness-friendly — Nix is lazy, so unevaluated projections
       #      (commented-out lines) impose zero cost. The `perSystemOutputs` call
       #      is re-invoked per projection, but thanks to Nix's thunk
-      #      sharing within each `traverseSystems` call, in practice the
+      #      sharing within each `fmapSystems` call, in practice the
       #      attribute set is built once per system per output type.
       #
       # Trade-off / possible improvement:
-      #   Each `traverseSystems` call independently invokes `perSystemOutputs`,
+      #   Each `fmapSystems` call independently invokes `perSystemOutputs`,
       #   meaning `perSystemOutputs` is called N×M times (N systems × M output
       #   types). While Nix's laziness means only accessed attrs are
       #   forced, the intermediate records are not shared across
       #   projections. A more efficient (but less readable) approach:
       #
-      #     let allOutputs = traverseSystems (pkgs:
+      #     let allOutputs = fmapSystems (pkgs:
       #           perSystemOutputs pkgs.system pkgs);
       #     in {
       #       packages  = mapAttrs (_: v: v.packages)  allOutputs;
@@ -190,9 +190,9 @@
       #   a product once and applying multiple projections, rather than
       #   recomputing the product for each projection.
       #
-      packages = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).packages);
-      apps = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).apps);
-      # devShells = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).devShells);
-      # checks = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).checks);
+      packages = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).packages);
+      apps = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).apps);
+      # devShells = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).devShells);
+      # checks = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).checks);
     };
 }

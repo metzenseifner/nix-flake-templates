@@ -26,7 +26,7 @@
       nix-derivation-hofs,
     }:
     let
-      traverseSystems =
+      fmapSystems =
         f:
         nixpkgs.lib.genAttrs (import systems) (
           system:
@@ -40,7 +40,7 @@
         );
     in
     {
-      devShells = traverseSystems (
+      devShells = fmapSystems (
         { pkgs, system }:
         let
           # Use stable Rust toolchain with clippy and rustfmt

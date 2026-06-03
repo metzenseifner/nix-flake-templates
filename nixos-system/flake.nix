@@ -10,10 +10,17 @@
     };
   };
 
-  outputs = { self, nixpkgs, systems, disko, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      systems,
+      disko,
+      ...
+    }:
     let
       # Helper to generate configurations for each system
-      traverseSystems = f: nixpkgs.lib.genAttrs (import systems) (system: f system);
+      fmapSystems = f: nixpkgs.lib.genAttrs (import systems) (system: f system);
     in
     {
       # NixOS configurations for different architectures
@@ -42,7 +49,8 @@
       };
 
       # Example: build images for different architectures
-      packages = traverseSystems (system:
+      packages = fmapSystems (
+        system:
         let
           pkgs = import nixpkgs { inherit system; };
         in

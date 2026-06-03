@@ -17,7 +17,7 @@
       ...
     }:
     let
-      traverseSystems =
+      fmapSystems =
         f:
         inputs.nixpkgs.lib.genAttrs inputs.nixpkgs.lib.systems.flakeExposed (
           system: f inputs.nixpkgs.legacyPackages.${system}
@@ -114,9 +114,9 @@
     in
     {
       # Projections over Record(system)
-      packages = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).packages);
-      apps = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).apps);
-      devShells = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).devShells);
-      # checks = traverseSystems (pkgs: (perSystemOutputs pkgs.system pkgs).checks);
+      packages = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).packages);
+      apps = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).apps);
+      devShells = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).devShells);
+      # checks = fmapSystems (pkgs: (perSystemOutputs pkgs.system pkgs).checks);
     };
 }

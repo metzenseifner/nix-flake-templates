@@ -50,11 +50,11 @@
     systems,
   }:
   let
-    traverseSystems =
+    fmapSystems =
       f: nixpkgs.lib.genAttrs (import systems) (system: f { inherit system; pkgs = import nixpkgs { inherit system; }; });
   in
   {
-    devShells = traverseSystems (
+    devShells = fmapSystems (
       { pkgs, system }:
       let
           myPackages = with pkgs; [

@@ -12,11 +12,11 @@
   }:
   let
     # Functor: Maps a "System" category to a "Derivation/Package" category.
-    traverseSystems =
+    fmapSystems =
       f: nixpkgs.lib.genAttrs (import systems) (system: f { pkgs = import nixpkgs { inherit system; }; });
   in
   {
-    devShells = traverseSystems (
+    devShells = fmapSystems (
       { pkgs }:
       {
         default = pkgs.mkShellNoCC {
