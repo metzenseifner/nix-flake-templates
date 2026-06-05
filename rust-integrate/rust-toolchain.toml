@@ -1,0 +1,14 @@
+# Single source of truth for the Rust toolchain.
+# Both Nix (via rust-overlay's `fromRustupToolchainFile`) and rustup-style tools
+# read this file. Change the channel here and `nix develop` picks it up.
+[toolchain]
+channel = "stable"
+components = [
+  "rustc",
+  "cargo",
+  "clippy",
+  "rustfmt",
+  "rust-src",
+  "rust-analyzer",
+]
+profile = "minimal"

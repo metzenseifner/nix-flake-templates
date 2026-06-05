@@ -118,6 +118,24 @@ Key features:
 nix flake init -t github:liyangau/flake-templates#dynatrace
 ```
 
+## Repo hooks
+
+This repo ships a versioned pre-commit hook that keeps `rust/flake.nix` and
+`rust-integrate/flake.nix` in sync below the description block (the only
+intentional difference is the top-of-file `description = ''...'';`).
+
+Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+You can also run the check manually at any time:
+
+```bash
+./scripts/check-rust-template-sync.sh
+```
+
 ## unfree App
 
 Sometimes, you might encounter errors similar to the following when attempting to use the flake. This typically occurs due to one of the packages being non-free, such as terraform.

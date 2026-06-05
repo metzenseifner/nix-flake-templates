@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Versioned pre-commit hook.
+# Enable once per clone with:  git config core.hooksPath .githooks
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Only run the rust template sync check when one of the two flakes is staged.
+if git diff --cached --name-only --diff-filter=ACMR \
+    | grep -qE '^(rust|rust-integrate)/flake\.nix$'; then
+  "$REPO_ROOT/scripts/check-rust-template-sync.sh"
+fi

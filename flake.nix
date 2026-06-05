@@ -83,7 +83,47 @@
         };
         rust = {
           path = ./rust;
-          description = "Rust development environment with unified dev-* CLI";
+          description = "Rust project bootstrap (crane + rust-toolchain.toml). Includes placeholder Cargo.toml and src/main.rs.";
+          welcomeText = ''
+            Rust bootstrap initialized.
+
+            Files copied:
+              flake.nix, flake.lock        - Nix build + dev shell (crane)
+              rust-toolchain.toml          - single source of truth for the toolchain
+              Cargo.toml, Cargo.lock, src/ - placeholder hello-world crate
+              .envrc, .gitignore           - direnv + ignores
+              CLAUDE.md                    - AI-assistant guidance
+
+            Next steps:
+              direnv allow      # or: nix develop
+              dev-help          # list dev-* commands
+
+            If you wanted to add Nix to an EXISTING Cargo project instead,
+            use the `rust-integrate` template variant.
+          '';
+        };
+        rust-integrate = {
+          path = ./rust-integrate;
+          description = "Add Nix (crane + rust-toolchain.toml) to an EXISTING Rust project. Ships only flake/dev-shell files — no Cargo.toml or src/.";
+          welcomeText = ''
+            Rust + Nix overlay initialized for an existing Cargo project.
+
+            Files copied (Nix-side only):
+              flake.nix, flake.lock        - Nix build + dev shell (crane)
+              rust-toolchain.toml          - single source of truth for the toolchain
+              .envrc, .gitignore           - direnv + ignores
+              CLAUDE.md                    - AI-assistant guidance
+
+            Your existing Cargo.toml / Cargo.lock / src/ were NOT touched.
+
+            Integration checklist:
+              1. Merge .gitignore entries with any existing .gitignore.
+              2. Reconcile rust-toolchain.toml with any pre-existing toolchain
+                 file in the repo — keep only one.
+              3. Add native deps to commonBuildInputs in flake.nix.
+              4. nix flake check   # verify clippy / fmt / tests under Nix
+              5. git add the new files and commit.
+          '';
         };
       };
       defaultTemplate = self.templates.shell;
