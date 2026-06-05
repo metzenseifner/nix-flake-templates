@@ -1,34 +1,52 @@
 {
   description = ''
-    Rust development environment with a unified project CLI.
+    Rust project bootstrap.
 
-    Use `nix develop` or `nix develop -c $SHELL` to activate.
+    Division of labor:
+      * Cargo owns crate dependencies (Cargo.toml / Cargo.lock).
+      * Nix owns the toolchain, system libraries, and reproducible env.
+
+    The Rust toolchain is read from rust-toolchain.toml (single source of truth).
+    Crate hashes are derived from Cargo.lock by crane (no hand-maintained hashes).
+    Build inputs and env vars are declared once and shared by devShell + package
+    so `cargo build` in `nix develop` and `nix build` agree.
+
+    Quick start:
+      nix develop          # enter dev shell (or `direnv allow` if using nix-direnv)
+      nix build            # build the package via crane
+      nix flake check      # run clippy, rustfmt, and tests as Nix checks
   '';
 
   inputs = {
-    systems.url = "github:nix-systems/default";
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
-    nix-derivation-hofs = {
-      url = "git+ssh://git@github.com/metzenseifner/nix-derivation-hofs";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    crane.url = "github:ipetkov/crane";
+
+    nix-derivation-hofs = {
+      url = "github:metzenseifner/nix-derivation-hofs";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    {
+    inputs@{
       self,
       nixpkgs,
-      systems,
       rust-overlay,
+      crane,
       nix-derivation-hofs,
+      ...
     }:
     let
+      # Functor: lift (pkgs -> outputs) across each flake-exposed system.
       fmapSystems =
         f:
-        nixpkgs.lib.genAttrs (import systems) (
+        nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed (
           system:
           f {
             inherit system;
@@ -38,124 +56,156 @@
             };
           }
         );
-    in
-    {
-      devShells = fmapSystems (
-        { pkgs, system }:
+
+      perSystemOutputs =
+        { system, pkgs }:
         let
-          # Use stable Rust toolchain with clippy and rustfmt
-          rustToolchain = pkgs.rust-bin.stable.latest.default.override {
-            extensions = [
-              "rust-src"
-              "rust-analyzer"
-              "clippy"
-              "rustfmt"
+          inherit (nix-derivation-hofs.lib) withHelps mkHelpPkg;
+
+          # ---- Single source of truth for the toolchain ----
+          # rust-toolchain.toml is read by both Nix (here) and rustup-style tools.
+          rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+
+          craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
+
+          src = craneLib.cleanCargoSource ./.;
+
+          # ---- One place defines build inputs and env for BOTH devShell and package ----
+          # This is the anti-trap: avoid divergent env between `nix develop` and `nix build`.
+          commonNativeBuildInputs = [
+            pkgs.pkg-config
+          ];
+
+          commonBuildInputs =
+            [
+              pkgs.openssl
+            ]
+            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              pkgs.libiconv
             ];
+
+          # Env vars that BOTH the package build and the dev shell must agree on.
+          commonEnv = {
+            # Force openssl-sys to use the Nix-provided OpenSSL via pkg-config.
+            OPENSSL_NO_VENDOR = "1";
+            # Point editors / rust-analyzer at the pinned toolchain's std sources.
+            RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
           };
 
-          # --- Unified CLI scripts ---
-          # These use a dev-* prefix so they won't collide with anything
-          # and can be the same across language templates.
+          commonArgs = {
+            inherit src;
+            strictDeps = true;
+            nativeBuildInputs = commonNativeBuildInputs;
+            buildInputs = commonBuildInputs;
+          }
+          // commonEnv;
 
-          inherit (nix-derivation-hofs.lib) withTime withDocs mkHelpPkg;
+          # Crane derives this layer from Cargo.lock — no hand-maintained hashes.
+          cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
-          dev-init = withTime (withDocs "Initialize a new project" (
-            pkgs.writeShellScriptBin "dev-init" ''
-              set -euo pipefail
-              if [ -f Cargo.toml ]; then
-                echo "Cargo.toml already exists. Aborting."
-                exit 1
-              fi
-              cargo init "''${@:-.}"
-              echo "Project initialized."
-            ''
-          ));
+          crate = craneLib.buildPackage (commonArgs // { inherit cargoArtifacts; });
 
-          dev-deps = withDocs "Fetch/build dependencies" (
-            pkgs.writeShellScriptBin "dev-deps" ''
-              set -euo pipefail
-              cargo fetch "$@"
-              echo "Dependencies fetched."
-            ''
+          # ---- Dev scripts ----
+          # Updates are two intentional, separate operations; never auto-floated.
+          dev-build = withHelps "Build the project (cargo build)" (
+            pkgs.writeShellApplication {
+              name = "dev-build";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo build "$@"'';
+            }
           );
 
-          dev-update = withDocs "Update dependencies" (
-            pkgs.writeShellScriptBin "dev-update" ''
-              set -euo pipefail
-              cargo update "$@"
-              echo "Dependencies updated."
-            ''
+          dev-run = withHelps "Run the project (cargo run)" (
+            pkgs.writeShellApplication {
+              name = "dev-run";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo run "$@"'';
+            }
           );
 
-          dev-build = withDocs "Build the project" (
-            pkgs.writeShellScriptBin "dev-build" ''
-              set -euo pipefail
-              cargo build "$@"
-            ''
+          dev-test = withHelps "Run tests (cargo test)" (
+            pkgs.writeShellApplication {
+              name = "dev-test";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo test "$@"'';
+            }
           );
 
-          dev-test = withDocs "Run tests" (
-            pkgs.writeShellScriptBin "dev-test" ''
-              set -euo pipefail
-              cargo test "$@"
-            ''
+          dev-check = withHelps "Typecheck without building (cargo check)" (
+            pkgs.writeShellApplication {
+              name = "dev-check";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo check "$@"'';
+            }
           );
 
-          dev-lint = withDocs "Lint the project" (
-            pkgs.writeShellScriptBin "dev-lint" ''
-              set -euo pipefail
-              cargo clippy "$@"
-            ''
+          dev-lint = withHelps "Lint with clippy, deny warnings" (
+            pkgs.writeShellApplication {
+              name = "dev-lint";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo clippy --all-targets -- -D warnings "$@"'';
+            }
           );
 
-          dev-fmt = withDocs "Format the code" (
-            pkgs.writeShellScriptBin "dev-fmt" ''
-              set -euo pipefail
-              cargo fmt "$@"
-            ''
+          dev-fmt = withHelps "Format the code (cargo fmt)" (
+            pkgs.writeShellApplication {
+              name = "dev-fmt";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo fmt "$@"'';
+            }
           );
 
-          dev-run = withDocs "Run the project" (
-            pkgs.writeShellScriptBin "dev-run" ''
-              set -euo pipefail
-              cargo run "$@"
-            ''
+          dev-doc = withHelps "Generate and open documentation" (
+            pkgs.writeShellApplication {
+              name = "dev-doc";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo doc --open "$@"'';
+            }
           );
 
-          dev-clean = withDocs "Clean the build artifacts" (
-            pkgs.writeShellScriptBin "dev-clean" ''
-              set -euo pipefail
-              cargo clean "$@"
-              echo "Build artifacts cleaned."
-            ''
+          dev-clean = withHelps "Clean build artifacts (cargo clean)" (
+            pkgs.writeShellApplication {
+              name = "dev-clean";
+              runtimeInputs = [ rustToolchain ];
+              text = ''cargo clean "$@"'';
+            }
           );
 
-          dev-check = withDocs "Typecheck without building" (
-            pkgs.writeShellScriptBin "dev-check" ''
-              set -euo pipefail
-              cargo check "$@"
-            ''
+          dev-update-crates = withHelps "Update Cargo.lock — review the diff before committing" (
+            pkgs.writeShellApplication {
+              name = "dev-update-crates";
+              runtimeInputs = [ rustToolchain ];
+              text = ''
+                cargo update "$@"
+                echo ""
+                echo "Cargo.lock updated. Review the diff with: git diff -- Cargo.lock"
+              '';
+            }
           );
 
-          dev-doc = withDocs "Generate and open documentation" (
-            pkgs.writeShellScriptBin "dev-doc" ''
-              set -euo pipefail
-              cargo doc --open "$@"
-            ''
+          dev-update-flake = withHelps "Update flake.lock — review the diff before committing" (
+            pkgs.writeShellApplication {
+              name = "dev-update-flake";
+              runtimeInputs = [ pkgs.nix pkgs.git ];
+              text = ''
+                nix flake update "$@"
+                echo ""
+                echo "flake.lock updated. Review the diff with: git diff -- flake.lock"
+              '';
+            }
           );
 
           devScripts = [
-            dev-init
-            dev-deps
-            dev-update
             dev-build
+            dev-run
             dev-test
+            dev-check
             dev-lint
             dev-fmt
-            dev-run
-            dev-clean
-            dev-check
             dev-doc
+            dev-clean
+            dev-update-crates
+            dev-update-flake
           ];
 
           dev-help = mkHelpPkg {
@@ -163,34 +213,58 @@
             name = "dev-help";
             derivations = devScripts;
           };
-
-          myPackages = [
-            rustToolchain
-            pkgs.pkg-config
-            pkgs.openssl
-          ]
-          ++ devScripts
-          ++ [ dev-help ];
-
-          packageNames = builtins.concatStringsSep " " (map (p: p.name) myPackages);
         in
         {
-          default = pkgs.mkShellNoCC {
-            packages = myPackages;
-
-            # Needed for some crates that link against system libs
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-              pkgs.openssl
-            ];
-
-            shellHook = ''
-              echo "🔧 Activated Rust dev shell for system: ${system}"
-              echo "🦀 Rust: $(rustc --version)"
-              echo ""
-              echo "Run dev-help for available commands."
-            '';
+          packages = {
+            default = crate;
           };
-        }
-      );
+
+          apps.default = {
+            type = "app";
+            program = "${crate}/bin/${crate.pname}";
+          };
+
+          # `nix flake check` runs these — same env, same toolchain, same inputs.
+          checks = {
+            inherit crate;
+            clippy = craneLib.cargoClippy (
+              commonArgs
+              // {
+                inherit cargoArtifacts;
+                cargoClippyExtraArgs = "--all-targets -- -D warnings";
+              }
+            );
+            fmt = craneLib.cargoFmt { inherit src; };
+            test = craneLib.cargoTest (commonArgs // { inherit cargoArtifacts; });
+          };
+
+          devShells.default = craneLib.devShell (
+            {
+              # Inherit nativeBuildInputs/buildInputs from the package so env hooks
+              # (pkg-config, etc.) set the same PKG_CONFIG_PATH in shell and build.
+              inputsFrom = [ crate ];
+
+              packages = devScripts ++ [ dev-help ];
+
+              shellHook = ''
+                echo "Rust dev shell (${system})"
+                echo "$(rustc --version)"
+                echo ""
+                echo "Run dev-help for available commands."
+              '';
+            }
+            // commonEnv
+          );
+        };
+
+      # Compute each system's outputs once, project each field across systems.
+      perSystem = fmapSystems perSystemOutputs;
+      project = field: builtins.mapAttrs (_: out: out.${field}) perSystem;
+    in
+    {
+      packages = project "packages";
+      apps = project "apps";
+      checks = project "checks";
+      devShells = project "devShells";
     };
 }
