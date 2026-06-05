@@ -11,6 +11,64 @@
     Build inputs and env vars are declared once and shared by devShell + package
     so `cargo build` in `nix develop` and `nix build` agree.
 
+    Maintaining dependencies over time
+    ----------------------------------
+    Three buckets define what the project needs from the system. Putting each
+    new dep in the right bucket is what keeps the closure honest and avoids
+    "works in `nix develop`, fails in `nix build`" drift.
+
+      commonNativeBuildInputs  Tools that run on the BUILD host during compile
+                               (pkg-config, cmake, protoc, bindgen). Not linked
+                               into the binary, not in the runtime closure.
+                               Cross-compilation: these are build-platform tools.
+
+      commonBuildInputs        Libraries linked into the binary OR needed at
+                               runtime (openssl, sqlite, libpq). Also the
+                               answer when a -sys crate's build.rs needs to
+                               locate headers/libs. Cross-compilation: these
+                               are target-platform libs.
+
+      commonEnv                Env vars BOTH `nix build` and `nix develop` must
+                               agree on (OPENSSL_NO_VENDOR, PROTOC, LIBCLANG_PATH,
+                               RUST_SRC_PATH). The anti-trap: vars set only in
+                               shellHook drift away from what `nix build` sees.
+
+    Extending:
+      * Pure-Rust crate              `cargo add`, commit Cargo.lock. Done — do
+                                     NOT touch flake.nix.
+      * Crate with a -sys companion  `cargo add`, then add the C library to
+                                     commonBuildInputs and any required env
+                                     (OPENSSL_NO_VENDOR, PROTOC=..., etc.) to
+                                     commonEnv. Re-run `nix flake check`.
+      * Build-time tool only         commonNativeBuildInputs — keeps it out of
+                                     the runtime closure.
+      * Test-only system dep         Still commonBuildInputs. `nix flake check`
+                                     runs tests under the SAME buildInputs as
+                                     `nix build`; there is no separate test
+                                     bucket. Put rust-side test helpers
+                                     (cargo-nextest, cargo-insta) in the
+                                     devShell's extra packages, not here.
+      * Runtime-only system dep      Still commonBuildInputs. Crane's package
+                                     closure is what gets shipped, and anything
+                                     reachable from buildInputs is reachable
+                                     at runtime.
+      * Toolchain bump               Edit rust-toolchain.toml, `nix flake
+                                     check`, commit. Never bump it in flake.nix.
+      * Flake input bump             `dev-update-flake` (nix flake update),
+                                     commit flake.lock SEPARATELY from any
+                                     Cargo.lock change.
+
+    Trimming:
+      * Remove a crate               `cargo remove`, commit Cargo.lock. If the
+                                     crate was the only user of a native dep,
+                                     delete the matching entries from
+                                     commonBuildInputs / commonEnv too.
+      * Audit periodically           Grep Cargo.lock for `*-sys` crates and
+                                     cross-check against commonBuildInputs.
+                                     Missing entry → silent vendored fallback
+                                     or breakage on a fresh machine. Extra
+                                     entry → harmless but bloats the closure.
+
     Quick start:
       nix develop          # enter dev shell (or `direnv allow` if using nix-direnv)
       nix build            # build the package via crane
@@ -72,6 +130,10 @@
 
           # ---- One place defines build inputs and env for BOTH devShell and package ----
           # This is the anti-trap: avoid divergent env between `nix develop` and `nix build`.
+          # pkg-config + openssl + OPENSSL_NO_VENDOR are pre-wired as a set because
+          # openssl-sys is the most common native dep in the Rust ecosystem (reqwest
+          # default features, git2, native-tls, ...). Drop all three if you stay on
+          # pure-rustls; keep all three if you add anything that pulls in openssl-sys.
           commonNativeBuildInputs = [
             pkgs.pkg-config
           ];
@@ -86,7 +148,7 @@
 
           # Env vars that BOTH the package build and the dev shell must agree on.
           commonEnv = {
-            # Force openssl-sys to use the Nix-provided OpenSSL via pkg-config.
+            # Use the Nix-provided OpenSSL instead of letting openssl-sys build its vendored copy.
             OPENSSL_NO_VENDOR = "1";
             # Point editors / rust-analyzer at the pinned toolchain's std sources.
             RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
