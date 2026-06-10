@@ -247,20 +247,39 @@
 
           # `nix develop`: inherits every dependency the checks need,
           # plus the pinned toolchain (cargo, rustc, clippy, rustfmt).
-          devShells.default = craneLib.devShell {
-            inherit checks;
+          #
+          # Fast linking (zero2prod ch1):
+          # - Linux x86_64: nothing to configure. rustc >= 1.90 links with
+          #   its bundled rust-lld by default; the book's clang+lld
+          #   .cargo/config.toml dance predates this. (aarch64-linux still
+          #   uses GNU ld; add the same flags as darwin below if needed.)
+          # - macOS: nix's cctools ld64 is the slow classic linker, so we
+          #   provide LLVM's lld and tell cargo to link through it.
+          devShells.default = craneLib.devShell (
+            {
+              inherit checks;
 
-            packages = [
-              pkgs.cargo-nextest
-              pkgs.cargo-deny
-              # zero2prod chapter 1: inner development loop
-              pkgs.cargo-watch # or pkgs.bacon (maintained successor)
-              # zero2prod chapter 3+: database tooling
-              # pkgs.sqlx-cli
-              # pkgs.postgresql
-              # pkgs.rust-analyzer
-            ];
-          };
+              packages = [
+                pkgs.cargo-nextest
+                pkgs.cargo-deny
+                # zero2prod chapter 1: inner development loop
+                pkgs.cargo-watch # or pkgs.bacon (maintained successor)
+                # zero2prod chapter 3+: database tooling
+                # pkgs.sqlx-cli
+                # pkgs.postgresql
+                # pkgs.rust-analyzer
+              ]
+              ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+                pkgs.llvmPackages.bintools # provides ld64.lld
+              ];
+            }
+            // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+              # Only set in the dev shell: the hermetic crane builds are
+              # deliberately left on their default linker so derivation
+              # hashes stay independent of dev-loop tuning.
+              CARGO_BUILD_RUSTFLAGS = "-C link-arg=-fuse-ld=lld";
+            }
+          );
         };
 
       # Compute each system's outputs ONCE, then project each field out.
