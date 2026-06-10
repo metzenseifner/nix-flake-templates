@@ -272,6 +272,17 @@
               ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
                 pkgs.llvmPackages.bintools # provides ld64.lld
               ];
+              shellHook = ''
+                cat <<EOF
+                  Ensure the following:
+
+                  .gitignore contains result and result-* as Nix will output build artifacts there.
+                  Cargo.lock committed; else cargo generate-lockfile, then commit
+                  deny.toml committed; else cargo deny init, then commit
+
+                  Check with: nix flake check --all-systems (or e.g. check for deny.toml by running nix build .#checks.<sys>.deny)
+                EOF
+              '';
             }
             // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
               # Only set in the dev shell: the hermetic crane builds are
