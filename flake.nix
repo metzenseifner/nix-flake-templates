@@ -81,6 +81,30 @@
           path = ./kubernetes;
           description = "Kubernetes development environment with AWS EKS access";
         };
+        zero2prod-rust = {
+          path = ./zero2prod-rust;
+          description = "Rust project with Nix integration matching closely the Zero to Production in Rust Book Specifications";
+          welcomeText = ''
+            Zero to Production in Rust bootstrap initialized.
+
+             The book's integration tests won't run in the Nix sandbox as-is.
+             This doesn't bite in chapter 1, but from chapter 3 onward,
+             zero2prod's tests spin up the app and talk to a live Postgres
+             (launched via scripts/init_db.sh in Docker). The Nix build sandbox
+             has no network and no running services, so the moment you write
+             those tests, your nextest check will start failing — not because
+             the code is wrong, but because the database isn't there. You have
+             three realistic options: run integration tests outside Nix in the
+             devShell (book-style, simplest — keep the Nix check limited to
+             unit tests via nextest filter expressions); start an ephemeral
+             Postgres inside the check derivation (pkgs.postgresql, initdb +
+             pg_ctl against a Unix socket in a preCheck hook — fully hermetic,
+             very Nix-idiomatic, some setup work); or a NixOS VM test for the
+             full integration suite (the heavyweight, most rigorous option).
+             Worth deciding before you hit chapter 3 rather than when CI
+             suddenly goes red.
+          '';
+        };
         rust = {
           path = ./rust;
           description = "Rust project bootstrap (crane + rust-toolchain.toml). Includes placeholder Cargo.toml and src/main.rs.";
