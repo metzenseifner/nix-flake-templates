@@ -274,13 +274,17 @@
               ];
               shellHook = ''
                 cat <<EOF
-                  Ensure the following:
+                  Day-0 Steps (Ensure the following)
 
+                  #  Cargo.lock committed
+                  cargo generate-lockfile; git add Cargo.lock
+                  # deny.toml committed; else cargo deny init, then commit
+
+                  cargo deny init; git add deny.toml
                   .gitignore contains result and result-* as Nix will output build artifacts there.
-                  Cargo.lock committed; else cargo generate-lockfile, then commit
-                  deny.toml committed; else cargo deny init, then commit
 
-                  Check with: nix flake check --all-systems (or e.g. check for deny.toml by running nix build .#checks.<sys>.deny)
+
+                  nix flake check --all-systems # check aforementioned  (or e.g. check for deny.toml by running nix build .#checks.<sys>.deny)
                 EOF
               '';
             }
