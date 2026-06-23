@@ -260,16 +260,34 @@
               inherit checks;
 
               packages = [
+                #------------------------------------------------------------------------------#
+                #                            Common-OS Derivations                             #
+                #------------------------------------------------------------------------------#
                 pkgs.cargo-nextest
                 pkgs.cargo-deny
                 # zero2prod chapter 1: inner development loop
                 pkgs.cargo-watch # or pkgs.bacon (maintained successor)
+                # `cargo expand` needs a nightly rustc for --pretty=expanded;
+                # the pinned stable toolchain stays the default, nightly is
+                # only picked up by cargo-expand via the +nightly proxy.
+                pkgs.cargo-expand
+                (pkgs.rust-bin.selectLatestNightlyWith (t: t.minimal))
                 # zero2prod chapter 3+: database tooling
                 # pkgs.sqlx-cli
                 # pkgs.postgresql
                 # pkgs.rust-analyzer
+
+                #------------------------------------------------------------------------------#
+                #              Add any lifecycle derivations (scripts) here that               #
+                #              control integrated entities or dependencies to pin              #
+                #                           those in the flake.lock                            #
+                #              e.g. pkgs.postgresql, pkgs.sqlx-cli, init-db, pg-stop           #
+                #------------------------------------------------------------------------------#
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+                #------------------------------------------------------------------------------#
+                #                          macOS-specific derivations                          #
+                #------------------------------------------------------------------------------#
                 pkgs.llvmPackages.bintools # provides ld64.lld
               ];
               shellHook = ''
