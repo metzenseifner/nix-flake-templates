@@ -1,6 +1,10 @@
 # Day-0 Steps (Ensure the following)
+[ -f Cargo.toml ] || cargo init .
 
-#  Cargo.lock committed
+# git-track Cargo.toml for hash
+git add Cargo.toml
+
+# git-track Cargo.lock for hash
 cargo generate-lockfile; git add Cargo.lock
 # deny.toml committed; else cargo deny init, then commit
 
