@@ -12,35 +12,34 @@
   outputs =
     inputs@{ self, nix-derivation-hofs, ... }:
     let
-      # Functor: a functor because it maps a package-producing function across a pre-defined set of architectural contexts, preserving structure of output
-      # Maps a "System" category to a "Derivation/Package" category.
+      # Map over systems and create attrset whose keys are systems and values
+      # are produced by a HOF lambda that takes a 1-tuple system and evaluates
+      # to any value. e.g.
+      # intermediate result: { x86_64-linux = f "x86_64-linux" pkgsForThat; aarch64-darwin = f "aarch64-darwin" pkgsForThat; … }
       fmapSystems =
         f:
         inputs.nixpkgs.lib.genAttrs inputs.nixpkgs.lib.systems.flakeExposed (
-          system: f inputs.nixpkgs.legacyPackages.${system}
+          system: f system inputs.nixpkgs.legacyPackages.${system} # changed: pass system too
         );
+
       perSystemOutputs =
         system: pkgs:
         let
-          inherit (nix-derivation-hofs.lib) withDocs mkHelpPkg;
+          inherit (nix-derivation-hofs.lib) withHelps mkHelpPkg; # changed: withDocs was renamed
           scriptFactories = {
             a =
               name:
-              withDocs "Usage: a" (
+              withHelps "Usage: a" (
                 pkgs.writeShellScriptBin name ''
-                  # Nix overwrites the shebang with a default shell - injects the bash shebang, nothing else. You're on your own for error handling.
                   set -euo pipefail
-                  # hermetically sealed dependencies (only ref the Nix Store) - from alchemist Hermes Trismegistus, meaning airtight
                   ${pkgs.curl}/bin/curl -s "https://example.com/api" | ${pkgs.jq}/bin/jq '.data'
                 ''
               );
             b =
               name:
-              withDocs "Usage: b" (
+              withHelps "Usage: b" (
                 pkgs.writeShellApplication {
-                  # injects set -euo pipefail automatically, plus runs shellcheck on your script at build time. The most opinionated/safe option.
-                  name = name;
-                  # hermetically sealed dependencies (only ref the Nix Store) - from alchemist Hermes Trismegistus, meaning airtight
+                  inherit name;
                   runtimeInputs = [
                     pkgs.curl
                     pkgs.jq
@@ -61,7 +60,6 @@
             default = resolved.a;
           };
         in
-        # Define outputs based on a per system, per pkgs basis
         {
           packages = scripts;
           apps =
@@ -69,21 +67,20 @@
               mkBinApp = drv: bin: {
                 type = "app";
                 program = "${drv}/bin/${bin}";
+                meta.description = drv.__doc or bin; # changed: silences flake check warning
               };
             in
             pkgs.lib.mapAttrs (name: drv: mkBinApp drv name) (
               pkgs.lib.filterAttrs (name: _: name != "default") scripts
             );
           devShells.default = pkgs.mkShell {
-            packages = [
-              scripts.help
-            ];
+            packages = builtins.attrValues resolved ++ [ scripts.help ]; # changed: scripts on search path
           };
         };
 
-      # Compute each system's outputs ONCE, then project each field out.
       # This is the System↔Output transpose: perSystem is keyed by system,
       # the flake schema wants each field keyed by system.
+      # Compute each system's outputs once, then project each field out.
       perSystem = fmapSystems perSystemOutputs;
       project = field: builtins.mapAttrs (_: out: out.${field}) perSystem;
     in
