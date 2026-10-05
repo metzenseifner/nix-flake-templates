@@ -5,6 +5,11 @@
     { self }:
     {
       templates = {
+        envrc = {
+          path = ./envrc;
+          description = "A .envrc file for direnv to auto activate dev shells of
+          flakes";
+        };
         letter = {
           path = ./letter;
           description = "A Markdown to PDF over LuaLaTeX Flake for business letters";
